@@ -1,0 +1,63 @@
+# ============================================================
+# SECURITY — never commit these
+# ============================================================
+
+# Secrets & credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# Internal documents (private notes, strategy memos, etc.)
+docs/
+
+# Claude Code / AI assistant data
+.claude/
+.claude/**
+CLAUDE.md
+**/CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+
+# Telegram session files (contain auth state)
+*.session
+*.session-journal
+
+# ============================================================
+# Python
+# ============================================================
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ============================================================
+# Local data / artifacts
+# ============================================================
+*.log
+*.sqlite3
+*.db
+data/raw/
+data/cache/
+notebooks/scratch/
+
+# ============================================================
+# Editor / OS
+# ============================================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
