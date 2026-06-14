@@ -63,3 +63,17 @@ def test_detector_keeps_only_smart_money():
     assert signals[0].label.entity_name == "Wintermute"
     assert signals[0].score > 0
     assert surf.credits_used == 0  # offline mode spends nothing
+
+
+def test_dex_pool_is_not_smart_money():
+    """Regression: a DEX pool (entity_type 'dex') must NOT be flagged as smart money."""
+    from alphatide.analytics.smart_money import signals_from_context
+    from alphatide.core.models import DetectionContext
+
+    pool = "0x5d54d430d1fd9425976147318e6080479bffc16d"  # Merchant Moe pool (real)
+    label = AddressLabel(pool, entity_name="Merchant Moe", entity_type="dex",
+                         labels=("Pool",))
+    assert entity_weight(label) == 0.0  # the leak is closed
+    events = [ev("0xsender", pool, 13_681, sym="WMNT")]
+    ctx = DetectionContext(events, large_movers(events, 10_000), {pool: label}, 10_000)
+    assert signals_from_context(ctx) == []

@@ -28,16 +28,24 @@ ENTITY_WEIGHT: dict[str, float] = {
     "cex": 0.6,  # CEX flows matter but are noisier
 }
 
+# Infrastructure / non-actor labels that are NEVER smart money. A DEX pool or a
+# token contract trips the USD threshold on every swap, but it isn't an actor —
+# excluding these by type is what keeps signals clean.
+NON_ACTOR_TYPES: frozenset[str] = frozenset({
+    "dex", "token", "contract", "smart-contract", "smart_contract",
+    "smart-contract-platform", "protocol", "nft", "bridge",
+})
+
 
 def entity_weight(label: AddressLabel) -> float:
+    """Smart-money weight for an identity. 0 for anonymous or non-actor labels.
+
+    No "any label gets a little weight" fallback — that let DEX pools and token
+    contracts leak in. Only explicitly recognized actor types score.
+    """
     if not label.is_labeled:
         return 0.0
-    if label.entity_type:
-        w = ENTITY_WEIGHT.get(label.entity_type.lower())
-        if w is not None:
-            return w
-    # labeled but unknown type → modest weight (still beats fully anonymous)
-    return 0.4
+    return ENTITY_WEIGHT.get((label.entity_type or "").lower(), 0.0)
 
 
 def size_factor(amount_usd: float) -> float:

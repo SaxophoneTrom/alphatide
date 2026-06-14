@@ -11,7 +11,7 @@ A standalone `detect(events, min_usd)` is kept for tests and one-off use.
 
 from __future__ import annotations
 
-from alphatide.analytics.scoring import build_reason, entity_weight, score_signal
+from alphatide.analytics.scoring import build_reason, score_signal
 from alphatide.core.config import settings
 from alphatide.core.models import (
     Action,
@@ -47,10 +47,9 @@ def signals_from_context(ctx: DetectionContext) -> list[SmartMoneySignal]:
         if label is None or not label.is_labeled:
             continue
         etype = (label.entity_type or "").lower()
-        if etype not in SMART_TYPES and entity_weight(label) < 0.4:
-            continue
-        # leave pure bridge/cex to the inflow detector
-        if etype in ("bridge", "cex"):
+        # allowlist only — DEX pools, token/contract labels, bridges and CEXes
+        # are NOT smart money (CEX/bridge inflows are the inflow detector's job).
+        if etype not in SMART_TYPES:
             continue
         action, top = _infer_action(addr, evs)
         agg_usd = sum(e.amount_usd for e in evs)

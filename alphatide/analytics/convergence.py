@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from alphatide.analytics.scoring import entity_weight
 from alphatide.core.models import Alert, AlertKind, DetectionContext
 
 # entity types that count as "smart money converging"
@@ -36,7 +35,7 @@ class ConvergenceDetector:
             if label is None or not label.is_labeled:
                 continue
             etype = (label.entity_type or "").lower()
-            if etype not in CONVERGE_TYPES and entity_weight(label) < 0.4:
+            if etype not in CONVERGE_TYPES:  # allowlist only — exclude DEX/contracts
                 continue
             name = label.entity_name or (label.labels[0] if label.labels else addr[:10])
             for ev in evs:
