@@ -1,0 +1,10 @@
+{
+  "_comment": "Real Surf wallet/labels/batch responses captured live (anonymous tier) on 2026-06-13. Used by AlphaTide demo/offline mode so the full pipeline runs without an API key. All data is public on-chain labeling — safe to ship.",
+  "labels": {
+    "0x0000006daea1723962647b7e189d311d757fb793": {"address": "0x0000006daea1723962647b7e189d311d757Fb793", "entity_name": "Wintermute", "entity_type": "fund", "labels": []},
+    "0xf584f8728b874a6a5c7a8d4d387c9aae9172d621": {"address": "0xf584F8728B874a6a5c7A8d4d387C9aae9172D621", "entity_name": "Jump Crypto", "entity_type": "fund", "labels": []},
+    "0x28c6c06298d514db089934071355e5743bf21d60": {"address": "0x28C6c06298d514Db089934071355E5743bf21d60", "entity_name": "Binance", "entity_type": "cex", "labels": [{"label": "Hot Wallet", "confidence": 1}]},
+    "0x83a127952d266a6ea306c40ac62a4a70668fe3bd": {"address": "0x83a127952d266A6eA306c40Ac62A4a70668FE3BD", "entity_name": "Alameda Research", "entity_type": "fund", "labels": [{"label": "FTX Deposit", "confidence": 1}]},
+    "0x78c1b0c915c4faa5fffa6cabf0219da63d7f4cb8": {"address": "0x78c1b0C915c4FAA5FffA6CAbf0219DA63d7f4cb8", "entity_name": "Mantle", "entity_type": "smart-contract-platform", "labels": [{"label": "Wrapped Mantle (WMNT)", "confidence": 1}]}
+  }
+}

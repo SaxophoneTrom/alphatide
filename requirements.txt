@@ -1,7 +1,12 @@
-python-telegram-bot>=21.0
-web3>=6.15
-httpx>=0.27
+# Core bot
+python-telegram-bot[job-queue]>=21.0   # [job-queue] powers the push monitor
 pydantic>=2.6
 pydantic-settings>=2.2
 python-dotenv>=1.0
-APScheduler>=3.10
+
+# Optional: richer on-chain queries (balances, contract calls).
+# The watcher itself uses stdlib JSON-RPC, so this is not needed for the demo.
+web3>=6.15
+
+# Dev
+pytest>=8.0
