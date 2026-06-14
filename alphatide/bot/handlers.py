@@ -47,11 +47,28 @@ def _pipeline(context: ContextTypes.DEFAULT_TYPE) -> AlphaTidePipeline:
     return pipe
 
 
+async def _rate_ok(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Per-user rate limit for expensive commands. Returns False if throttled."""
+    rl = context.application.bot_data.get("rate_limiter")
+    if rl is None:
+        return True
+    key = update.effective_chat.id
+    if rl.allow(key):
+        return True
+    wait = rl.retry_after(key)
+    await update.message.reply_text(
+        f"⏳ Easy there — too many requests. Try again in ~{wait}s."
+    )
+    return False
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(WELCOME, parse_mode=ParseMode.MARKDOWN)
 
 
 async def alpha(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await _rate_ok(update, context):
+        return
     await update.message.reply_text("🌊 Reading the tide on Mantle…")
     res = _pipeline(context).run_cycle()
     await update.message.reply_text(
@@ -66,16 +83,23 @@ async def alpha(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await _rate_ok(update, context):
+        return
     res = _pipeline(context).run_cycle()
     counts: dict[str, int] = {}
     for a in res.alerts:
         counts[a.kind.value] = counts.get(a.kind.value, 0) + 1
     breakdown = ", ".join(f"{k}:{v}" for k, v in counts.items()) or "none"
+    budget = context.application.bot_data.get("budget")
+    budget_line = (
+        f"\n• Surf budget left today: {budget.remaining()}/{budget.limit}"
+        if budget is not None else ""
+    )
     msg = (
         f"🔍 Scanned ~{res.scanned_events} transfers up to block {res.latest_block:,}\n"
         f"• {res.candidates} large movers (≥${settings.min_candidate_usd:,.0f})\n"
         f"• {len(res.alerts)} signals ({breakdown})\n"
-        f"• {res.credits_used} Surf credits used"
+        f"• {res.credits_used} Surf credits used{budget_line}"
     )
     await update.message.reply_text(msg)
     await update.message.reply_text(
@@ -85,6 +109,8 @@ async def scan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def whale(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await _rate_ok(update, context):
+        return
     if not context.args:
         await update.message.reply_text("Usage: /whale <TOKEN>  e.g. /whale mETH")
         return
@@ -105,6 +131,8 @@ async def whale(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await _rate_ok(update, context):
+        return
     if not context.args:
         await update.message.reply_text("Usage: /track <address>")
         return

@@ -26,6 +26,9 @@ CLAUDE.local.md
 *.session
 *.session-journal
 
+# Runtime state (subscriber list, etc.)
+.state/
+
 # ============================================================
 # Python
 # ============================================================

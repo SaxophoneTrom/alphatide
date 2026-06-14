@@ -41,5 +41,13 @@ class Settings(BaseSettings):
     # Run a detection cycle every N seconds in monitor mode.
     monitor_interval: int = 180
 
+    # --- Abuse protection (public bot) ---
+    # Max expensive commands a single user may trigger per 60s.
+    rate_limit_per_min: int = 6
+    # Global ceiling on Surf credits spent per UTC day (users + monitor share it).
+    daily_credit_budget: int = 500
+    # Where the push-subscriber list is persisted (survives restarts).
+    subscribers_file: str = ".state/subscribers.json"
+
 
 settings = Settings()

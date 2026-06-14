@@ -42,11 +42,14 @@ class SurfClient:
         api_key: str | None = None,
         offline: bool | None = None,
         cache: TTLCache | None = None,
+        budget=None,
     ) -> None:
         self.api_key = api_key if api_key is not None else settings.surf_api_key
         # offline auto-on only as a *fallback*; live is attempted first unless forced.
         self.offline = bool(offline)
         self.cache = cache or TTLCache(settings.label_cache_ttl)
+        # Optional DailyCreditBudget — when set, live spend is gated by it.
+        self.budget = budget
         self.credits_used = 0
         self._fixtures = self._load_fixtures()
 
@@ -93,6 +96,9 @@ class SurfClient:
         # 2) fetch the rest (live, falling back to fixtures)
         if self.offline:
             fetched = self._label_offline(to_fetch)
+        elif self.budget is not None and not self.budget.can_spend(1):
+            # daily credit ceiling reached → degrade to fixtures, keep responding
+            fetched = self._label_offline(to_fetch)
         else:
             try:
                 fetched = self._label_live(to_fetch)
@@ -119,10 +125,17 @@ class SurfClient:
         out: dict[str, AddressLabel] = {}
         for i in range(0, len(addresses), BATCH_LIMIT):
             chunk = addresses[i : i + BATCH_LIMIT]
+            # stop spending mid-way if the daily ceiling is hit; rest via fixtures
+            if self.budget is not None and not self.budget.can_spend(1):
+                out.update(self._label_offline(chunk))
+                continue
             resp = self._get(
                 "/wallet/labels/batch", {"addresses": ",".join(chunk)}
             )
-            self.credits_used += int(resp.get("meta", {}).get("credits_used", 0))
+            credits = int(resp.get("meta", {}).get("credits_used", 0))
+            self.credits_used += credits
+            if self.budget is not None:
+                self.budget.record(credits)
             seen = set()
             for item in resp.get("data", []):
                 label = AddressLabel.from_surf(item)
