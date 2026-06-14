@@ -1,8 +1,9 @@
-"""On-chain anomaly detection (secondary signal).
+"""On-chain anomaly detection (idea I — secondary signal).
 
 A lightweight statistical baseline that flags abnormal per-token transfer volume
-in the scan window. Complements the primary cross-chain smart money detector:
-"smart money moved" + "volume is anomalous" = a higher-conviction alert.
+in the scan window. Pure RPC math — **zero Surf credits**. Complements the
+cross-chain detectors: it catches abnormal moves even when no labeled wallet is
+involved, and "smart money moved + volume is anomalous" = higher conviction.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 
-from alphatide.core.models import TransferEvent
+from alphatide.core.models import Alert, AlertKind, DetectionContext, TransferEvent
 
 
 def volume_zscores(
@@ -32,10 +33,71 @@ def volume_zscores(
             out[sym] = 0.0
             continue
         mu = statistics.mean(past)
-        sigma = statistics.pstdev(past) or 1.0
-        out[sym] = round((vol - mu) / sigma, 2)
+        # Floor sigma relative to the mean so flat/low-variance history can't
+        # produce absurd z-scores (div-by-~0). Clamp to a sane range.
+        sigma = max(statistics.pstdev(past), 0.2 * abs(mu), 1.0)
+        z = (vol - mu) / sigma
+        out[sym] = round(max(-50.0, min(50.0, z)), 2)
     return out
 
 
 def is_anomalous(zscore: float, threshold: float = 3.0) -> bool:
     return abs(zscore) >= threshold
+
+
+def window_volumes(events: list[TransferEvent]) -> dict[str, float]:
+    vol: dict[str, float] = defaultdict(float)
+    for ev in events:
+        vol[ev.token_symbol] += ev.amount_usd
+    return dict(vol)
+
+
+class VolumeAnomalyDetector:
+    """Flags tokens whose current-window USD volume is a statistical outlier.
+
+    Reads/writes `ctx.volume_history` (token -> past window totals) which the
+    pipeline persists across cycles. Stays silent until it has enough history.
+    """
+
+    name = "anomaly"
+
+    def __init__(self, threshold: float = 3.0, max_history: int = 50) -> None:
+        self.threshold = threshold
+        self.max_history = max_history
+
+    def detect_ctx(self, ctx: DetectionContext) -> list[Alert]:
+        current = window_volumes(ctx.events)
+        zs = volume_zscores(ctx.events, ctx.volume_history)
+        alerts: list[Alert] = []
+        for token, z in zs.items():
+            if not is_anomalous(z, self.threshold):
+                continue
+            vol = current.get(token, 0.0)
+            baseline = statistics.mean(ctx.volume_history.get(token, [vol])) or 1.0
+            ratio = vol / baseline
+            direction = "spike" if z > 0 else "drop"
+            # Anomaly is a *secondary* signal — capped below named smart-money so
+            # labeled findings lead the digest. Value is in confluence.
+            score = round(min(80.0, 45.0 + 7.0 * (abs(z) - self.threshold + 1)), 1)
+            alerts.append(
+                Alert(
+                    kind=AlertKind.ANOMALY,
+                    score=score,
+                    emoji="📈" if z > 0 else "📉",
+                    headline=f"{token} volume {direction} — {ratio:.1f}× baseline",
+                    detail=(
+                        f"{token} transfer volume this window is ~${vol:,.0f} vs a "
+                        f"~${baseline:,.0f} baseline ({ratio:.1f}×, {abs(z):.1f}σ) on Mantle."
+                    ),
+                    token=token,
+                    extra={"zscore": z, "volume_usd": vol, "ratio": round(ratio, 2)},
+                )
+            )
+        # update rolling history AFTER scoring (so current isn't compared to itself)
+        for token, vol in current.items():
+            hist = ctx.volume_history.setdefault(token, [])
+            hist.append(vol)
+            if len(hist) > self.max_history:
+                del hist[: len(hist) - self.max_history]
+        alerts.sort(key=lambda a: a.score, reverse=True)
+        return alerts

@@ -95,3 +95,59 @@ class SmartMoneySignal:
         if l.labels:
             return ", ".join(l.labels)
         return "Unknown"
+
+    def to_alert(self) -> "Alert":
+        return Alert(
+            kind=AlertKind.SMART_MONEY,
+            score=self.score,
+            headline=f"{self.who} — {self.action.value} ${self.amount_usd:,.0f} {self.token_symbol}",
+            detail=self.reason,
+            token=self.token_symbol,
+            address=self.address,
+            tx_hash=self.tx_hash,
+            extra={"entity_type": self.label.entity_type},
+        )
+
+
+class AlertKind(str, Enum):
+    """The kinds of findings AlphaTide's detector suite can raise."""
+
+    SMART_MONEY = "smart_money"   # 7-A: a known fund/MM/whale moved on Mantle
+    CONVERGENCE = "convergence"   # B: several smart entities on the same token
+    INFLOW = "inflow"             # C: a bridge/CEX is pushing capital into Mantle
+    ANOMALY = "anomaly"           # I: token volume is statistically abnormal
+
+
+@dataclass
+class Alert:
+    """A unified, ready-to-push finding from any detector."""
+
+    kind: AlertKind
+    score: float
+    headline: str
+    detail: str
+    emoji: str = "🌊"
+    token: str | None = None
+    address: str | None = None
+    tx_hash: str | None = None
+    extra: dict = field(default_factory=dict)
+
+    @property
+    def dedup_key(self) -> str:
+        return f"{self.kind.value}:{self.address or ''}:{self.token or ''}:{self.tx_hash or ''}"
+
+
+@dataclass
+class DetectionContext:
+    """Shared inputs for one detection cycle.
+
+    Built once per cycle so every detector reuses the same Mantle scan and the
+    same (single, batched) Surf label lookup — no detector pays extra credits.
+    """
+
+    events: list[TransferEvent]
+    movers: dict[str, list[TransferEvent]]   # large movers, by address
+    labels: dict[str, AddressLabel]          # Surf identity for each mover
+    min_usd: float
+    volume_history: dict[str, list[float]] = field(default_factory=dict)
+    latest_block: int = 0

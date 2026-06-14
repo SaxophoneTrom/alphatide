@@ -1,63 +1,57 @@
-"""Telegram message formatting for AlphaTide signals.
+"""Telegram message formatting for AlphaTide alerts.
 
-Kept pure (string in / string out) so it's unit-testable without a bot running.
-Uses Telegram-flavored Markdown.
+Kept pure (Alert in / string out) so it's unit-testable without a bot running.
+One formatter renders every detector's output via the unified Alert type.
 """
 
 from __future__ import annotations
 
-from alphatide.core.models import SmartMoneySignal
+from alphatide.core.models import Alert, AlertKind
 
 MANTLE_EXPLORER = "https://mantlescan.xyz"
 
-
-def _emoji_for(entity_type: str | None) -> str:
-    return {
-        "fund": "🏦",
-        "vc": "🏦",
-        "market_maker": "⚙️",
-        "market-maker": "⚙️",
-        "smart_money": "🧠",
-        "smart-money": "🧠",
-        "cex": "🏛️",
-        "whale": "🐋",
-        "trader": "📈",
-    }.get((entity_type or "").lower(), "🌊")
+_KIND_LABEL = {
+    AlertKind.SMART_MONEY: "Smart money on Mantle",
+    AlertKind.CONVERGENCE: "Smart money convergence",
+    AlertKind.INFLOW: "Capital inflow to Mantle",
+    AlertKind.ANOMALY: "Volume anomaly",
+}
 
 
 def _bar(score: float) -> str:
-    filled = round(score / 10)
+    filled = max(0, min(10, round(score / 10)))
     return "█" * filled + "░" * (10 - filled)
 
 
-def format_signal(s: SmartMoneySignal) -> str:
-    emoji = _emoji_for(s.label.entity_type)
-    short = f"{s.address[:6]}…{s.address[-4:]}"
+def format_alert(a: Alert) -> str:
+    title = _KIND_LABEL.get(a.kind, "Signal")
     lines = [
-        f"{emoji} *Smart money on Mantle* — score *{s.score}*",
-        f"`{_bar(s.score)}`",
+        f"{a.emoji} *{title}* — score *{a.score}*",
+        f"`{_bar(a.score)}`",
         "",
-        f"*Who:* {s.who}",
-        f"*Action:* {s.action.value.upper()} ~${s.amount_usd:,.0f} of {s.token_symbol}",
-        f"*Address:* [{short}]({MANTLE_EXPLORER}/address/{s.address})",
+        f"*{a.headline}*",
+        "",
+        f"_{a.detail}_",
     ]
-    if s.tx_hash:
-        lines.append(f"*Tx:* [{s.tx_hash[:10]}…]({MANTLE_EXPLORER}/tx/{s.tx_hash})")
-    lines += ["", f"_{s.reason}_"]
-    if s.enrichment.get("note"):
-        lines.append(f"\n📊 {s.enrichment['note']}")
+    refs = []
+    if a.address:
+        short = f"{a.address[:6]}…{a.address[-4:]}"
+        refs.append(f"[{short}]({MANTLE_EXPLORER}/address/{a.address})")
+    if a.tx_hash and a.tx_hash.startswith("0x") and len(a.tx_hash) > 12:
+        refs.append(f"[tx]({MANTLE_EXPLORER}/tx/{a.tx_hash})")
+    if refs:
+        lines += ["", "  ·  ".join(refs)]
     return "\n".join(lines)
 
 
-def format_digest(signals: list[SmartMoneySignal], limit: int = 5) -> str:
-    if not signals:
-        return "🌊 *AlphaTide* — no smart money signals on Mantle right now. The tide is calm."
-    head = f"🌊 *AlphaTide* — top {min(limit, len(signals))} smart money signals on Mantle\n"
-    rows = []
-    for i, s in enumerate(signals[:limit], 1):
-        emoji = _emoji_for(s.label.entity_type)
-        rows.append(
-            f"{i}. {emoji} *{s.who}* — {s.action.value} ${s.amount_usd:,.0f} "
-            f"{s.token_symbol}  ·  score *{s.score}*"
+def format_digest(alerts: list[Alert], limit: int = 6) -> str:
+    if not alerts:
+        return (
+            "🌊 *AlphaTide* — the tide is calm. No smart money, convergence, "
+            "inflow or volume anomalies on Mantle right now."
         )
+    head = f"🌊 *AlphaTide* — top {min(limit, len(alerts))} signals on Mantle\n"
+    rows = []
+    for i, a in enumerate(alerts[:limit], 1):
+        rows.append(f"{i}. {a.emoji} {a.headline}  ·  *{a.score}*")
     return head + "\n".join(rows)

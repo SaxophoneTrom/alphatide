@@ -19,6 +19,10 @@ from alphatide.core.config import settings
 logging.basicConfig(
     format="%(asctime)s %(name)s %(levelname)s %(message)s", level=logging.INFO
 )
+# httpx logs the full Telegram API URL (which embeds the bot token) on every
+# poll. Quiet it so secrets never land in logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("telegram.ext.Updater").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 
