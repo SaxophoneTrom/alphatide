@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from alphatide.analytics.action_read import attach_read
 from alphatide.analytics.anomaly import VolumeAnomalyDetector
 from alphatide.analytics.convergence import ConvergenceDetector
 from alphatide.analytics.inflow import InflowDetector
@@ -76,6 +77,12 @@ class AlphaTidePipeline:
                 alerts.extend(det.detect_ctx(ctx))
             except Exception:
                 continue  # one detector failing must not sink the cycle
+        # attach the free, deterministic Action Read to every alert
+        for a in alerts:
+            try:
+                attach_read(a)
+            except Exception:
+                pass
         alerts.sort(key=lambda a: a.score, reverse=True)
 
         return CycleResult(

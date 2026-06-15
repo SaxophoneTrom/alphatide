@@ -70,9 +70,13 @@ def run_scenario() -> None:
         InflowDetector(),
         VolumeAnomalyDetector(),
     ]
+    from alphatide.analytics.action_read import attach_read
+
     alerts = []
     for d in detectors:
         alerts += d.detect_ctx(ctx)
+    for a in alerts:
+        attach_read(a)  # free rule-based Action Read on every alert
     alerts.sort(key=lambda a: a.score, reverse=True)
 
     print(f"\nInput: 4 large movers → {len(alerts)} alerts across "

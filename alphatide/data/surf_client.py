@@ -154,6 +154,39 @@ class SurfClient:
             out[a] = AddressLabel.from_surf(fx) if fx else AddressLabel.empty(a)
         return out
 
+    # --- Chat AI synthesis (surf-1.5-instant ≈ 2cr) ---
+    def chat(self, system: str, user: str, model: str = "surf-1.5-instant") -> str | None:
+        """Budget-gated natural-language interpretation. None if unavailable."""
+        cost = 2  # surf-1.5-instant per the credit table
+        if self.offline or not self.api_key:
+            return None
+        if self.budget is not None and not self.budget.can_spend(cost):
+            return None
+        body = json.dumps(
+            {"model": model, "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ]}
+        ).encode()
+        req = urllib.request.Request(
+            f"{BASE_URL}/chat/completions", data=body,
+            headers={"Content-Type": "application/json",
+                     "Authorization": f"Bearer {self.api_key}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = json.load(r)
+        except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError):
+            return None
+        if self.budget is not None:
+            self.budget.record(cost)
+        self.credits_used += cost
+        try:
+            content = data["choices"][0]["message"]["content"].strip()
+        except (KeyError, IndexError, AttributeError):
+            return None
+        return content or None
+
     # --- optional enrichment (used only on confirmed hits) ---
     def wallet_detail(self, address: str) -> dict | None:
         if self.offline or not self.api_key:

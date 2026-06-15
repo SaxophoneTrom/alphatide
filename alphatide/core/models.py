@@ -97,6 +97,8 @@ class SmartMoneySignal:
         return "Unknown"
 
     def to_alert(self) -> "Alert":
+        # receiving a token = accumulating it; sending = distributing
+        direction = "accumulate" if self.action == Action.RECEIVE else "distribute"
         return Alert(
             kind=AlertKind.SMART_MONEY,
             score=self.score,
@@ -105,7 +107,11 @@ class SmartMoneySignal:
             token=self.token_symbol,
             address=self.address,
             tx_hash=self.tx_hash,
-            extra={"entity_type": self.label.entity_type},
+            extra={
+                "entity_type": self.label.entity_type,
+                "direction": direction,
+                "amount_usd": self.amount_usd,
+            },
         )
 
 
@@ -131,6 +137,8 @@ class Alert:
     address: str | None = None
     tx_hash: str | None = None
     extra: dict = field(default_factory=dict)
+    read: dict | None = None       # rule-based Action Read (stance/play/risk…)
+    ai_note: str | None = None     # optional Surf Chat AI interpretation
 
     @property
     def dedup_key(self) -> str:

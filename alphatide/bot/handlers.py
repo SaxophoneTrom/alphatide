@@ -13,6 +13,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+from alphatide.analytics.action_read import attach_ai_note, is_high_conviction
 from alphatide.bot.formatting import format_alert, format_digest
 from alphatide.bot.state import load_recent_alerts
 from alphatide.core.config import settings
@@ -76,7 +77,13 @@ async def alpha(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not await _rate_ok(update, context):
         return
     await update.message.reply_text("🌊 Reading the tide on Mantle…")
-    res = _pipeline(context).run_cycle()
+    pipe = _pipeline(context)
+    res = pipe.run_cycle()
+    # AI read on the single strongest high-conviction alert (budget-gated)
+    for a in res.alerts[:3]:
+        if is_high_conviction(a):
+            attach_ai_note(a, pipe.surf)
+            break
     await update.message.reply_text(
         format_digest(res.alerts), parse_mode=ParseMode.MARKDOWN,
         disable_web_page_preview=True,

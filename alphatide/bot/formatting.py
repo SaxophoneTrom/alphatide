@@ -33,6 +33,20 @@ def format_alert(a: Alert) -> str:
         "",
         f"_{a.detail}_",
     ]
+    r = a.read or {}
+    if r:
+        act = (r.get("actionability") or "").upper()
+        lines += [
+            "",
+            f"📖 *Read:* {r.get('stance')}  ·  actionability *{act}*",
+            f"{r.get('meaning')}",
+            f"💡 {r.get('play')}",
+            f"✅ _Confirms if:_ {r.get('confirm')}",
+            f"🛑 _Invalidated if:_ {r.get('invalidate')}",
+            f"⚠️ _{r.get('risk')}_",
+        ]
+    if a.ai_note:
+        lines += ["", f"🤖 *AI read (Surf):* {a.ai_note}"]
     refs = []
     if a.address:
         short = f"{a.address[:6]}…{a.address[-4:]}"
@@ -53,5 +67,7 @@ def format_digest(alerts: list[Alert], limit: int = 6) -> str:
     head = f"🌊 *AlphaTide* — top {min(limit, len(alerts))} signals on Mantle\n"
     rows = []
     for i, a in enumerate(alerts[:limit], 1):
-        rows.append(f"{i}. {a.emoji} {a.headline}  ·  *{a.score}*")
+        act = (a.read or {}).get("actionability")
+        tag = f"  · act:{act}" if act else ""
+        rows.append(f"{i}. {a.emoji} {a.headline}  ·  *{a.score}*{tag}")
     return head + "\n".join(rows)

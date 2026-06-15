@@ -68,7 +68,12 @@ class ConvergenceDetector:
                         f"moved a combined ~${total:,.0f} of {token} on Mantle in this window."
                     ),
                     token=token,
-                    extra={"entities": names, "total_usd": total},
+                    extra={
+                        "entities": names,
+                        "total_usd": total,
+                        "direction": "accumulate" if verb == "accumulating" else "rotate",
+                        "n_entities": len(entities),
+                    },
                 )
             )
         alerts.sort(key=lambda a: a.score, reverse=True)

@@ -12,6 +12,7 @@ import logging
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
+from alphatide.analytics.action_read import attach_ai_note, is_high_conviction
 from alphatide.bot.formatting import format_alert
 from alphatide.bot.state import append_alert
 from alphatide.core.config import settings
@@ -35,6 +36,12 @@ async def monitor_tick(context: ContextTypes.DEFAULT_TYPE) -> None:
     fresh = [a for a in res.alerts if a.dedup_key not in seen]
     for a in fresh:
         seen.add(a.dedup_key)
+
+    # spend Surf Chat credits only on the single strongest high-conviction alert
+    for a in fresh:
+        if is_high_conviction(a):
+            attach_ai_note(a, pipe.surf)
+            break
 
     # heartbeat: only when there's something to say (avoids spamming quiet hours)
     if res.candidates or res.alerts:
