@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     # Volume anomaly: only flag spikes whose absolute window volume clears this
     # floor (avoids alerting on tiny-number outliers). Drops are never alerted.
     anomaly_min_volume_usd: float = 50_000.0
+    # And require the spike to be at least this many times the baseline — a 3σ
+    # move that's only 1.7× normal is statistically odd but economically nothing.
+    anomaly_min_ratio: float = 3.0
+    # Push gate: an anomaly is only *pushed* to subscribers if this dramatic.
+    # Below this it's still logged (visible via /recent) but doesn't ping anyone.
+    anomaly_push_ratio: float = 5.0
 
     # --- Abuse protection (public bot) ---
     # Max expensive commands a single user may trigger per 60s.

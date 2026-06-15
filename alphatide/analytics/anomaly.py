@@ -64,12 +64,15 @@ class VolumeAnomalyDetector:
 
     def __init__(
         self, threshold: float = 3.0, max_history: int = 50,
-        min_volume_usd: float | None = None,
+        min_volume_usd: float | None = None, min_ratio: float | None = None,
     ) -> None:
         self.threshold = threshold
         self.max_history = max_history
         self.min_volume_usd = (
             settings.anomaly_min_volume_usd if min_volume_usd is None else min_volume_usd
+        )
+        self.min_ratio = (
+            settings.anomaly_min_ratio if min_ratio is None else min_ratio
         )
 
     def detect_ctx(self, ctx: DetectionContext) -> list[Alert]:
@@ -86,18 +89,20 @@ class VolumeAnomalyDetector:
                 continue
             baseline = statistics.mean(ctx.volume_history.get(token, [vol])) or 1.0
             ratio = vol / baseline
-            # Anomaly is a *secondary* signal — capped below named smart-money so
-            # labeled findings lead the digest. Value is in confluence.
+            # Require an economically meaningful spike, not just a statistical one.
+            if ratio < self.min_ratio:
+                continue
+            rtxt = f"{ratio:.1f}×" if ratio < 100 else "100×+"  # cap absurd display
             score = round(min(80.0, 45.0 + 7.0 * (z - self.threshold + 1)), 1)
             alerts.append(
                 Alert(
                     kind=AlertKind.ANOMALY,
                     score=score,
                     emoji="📈",
-                    headline=f"{token} volume spike — {ratio:.1f}× baseline",
+                    headline=f"{token} volume spike — {rtxt} baseline",
                     detail=(
                         f"{token} transfer volume this window is ~${vol:,.0f} vs a "
-                        f"~${baseline:,.0f} baseline ({ratio:.1f}×, {z:.1f}σ) — "
+                        f"~${baseline:,.0f} baseline ({rtxt}, {z:.1f}σ) — "
                         f"unusual activity; check who's behind it."
                     ),
                     token=token,

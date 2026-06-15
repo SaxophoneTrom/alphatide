@@ -88,3 +88,27 @@ def test_anomaly_silent_below_volume_floor():
     history = {"mETH": [1_000.0] * 10}
     det = VolumeAnomalyDetector(threshold=3.0, min_volume_usd=50_000)
     assert det.detect_ctx(_ctx(events, {}, history)) == []
+
+
+def test_anomaly_silent_on_statistically_odd_but_tiny_ratio():
+    """The real-world '1.7× baseline' case: 3σ but economically nothing → no alert."""
+    # very stable history (low variance) → a 1.7x move clears 3σ but not 3x ratio
+    history = {"WMNT": [100_000.0, 101_000, 99_000, 100_500, 99_500, 100_200, 99_800, 100_100]}
+    events = [_ev("0xa", "0xb", 170_000, sym="WMNT")]  # 1.7x baseline
+    det = VolumeAnomalyDetector(threshold=3.0, min_volume_usd=50_000, min_ratio=3.0)
+    assert det.detect_ctx(_ctx(events, {}, history)) == []
+
+
+def test_push_worthiness_gates_weak_anomalies():
+    from alphatide.analytics.action_read import is_push_worthy
+    from alphatide.core.models import Alert, AlertKind
+
+    weak = Alert(kind=AlertKind.ANOMALY, score=55, headline="h", detail="d",
+                 extra={"ratio": 1.7})
+    big = Alert(kind=AlertKind.ANOMALY, score=70, headline="h", detail="d",
+                extra={"ratio": 8.0})
+    fund = Alert(kind=AlertKind.SMART_MONEY, score=60, headline="h", detail="d",
+                 extra={"entity_type": "fund"})
+    assert not is_push_worthy(weak)   # logged but not pushed
+    assert is_push_worthy(big)         # dramatic spike → push
+    assert is_push_worthy(fund)        # named actor → always push

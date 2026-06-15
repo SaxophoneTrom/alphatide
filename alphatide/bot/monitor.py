@@ -12,7 +12,11 @@ import logging
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
-from alphatide.analytics.action_read import attach_ai_note, is_high_conviction
+from alphatide.analytics.action_read import (
+    attach_ai_note,
+    is_high_conviction,
+    is_push_worthy,
+)
 from alphatide.bot.formatting import format_alert
 from alphatide.bot.state import append_alert
 from alphatide.core.config import settings
@@ -49,19 +53,23 @@ async def monitor_tick(context: ContextTypes.DEFAULT_TYPE) -> None:
             "cycle: %d movers, %d alerts, %d fresh, %dcr",
             res.candidates, len(res.alerts), len(fresh), res.credits_used,
         )
-    # record + log every fresh alert's content (auditable history)
+    # record + log EVERY fresh alert's content (auditable history / /recent)
     for a in fresh:
-        logger.info("ALERT %s [%.1f] %s", a.kind.value, a.score, a.headline)
+        push = is_push_worthy(a)
+        logger.info("ALERT %s [%.1f] %s%s", a.kind.value, a.score, a.headline,
+                    "" if push else "  (logged, not pushed)")
         try:
             append_alert(settings.alerts_file, a)
         except Exception as exc:
             logger.warning("alert history write failed: %s", exc)
 
-    if not fresh or not subscribers:
+    # push only the alerts worth interrupting someone for
+    pushable = [a for a in fresh if is_push_worthy(a)]
+    if not pushable or not subscribers:
         return
 
     for chat_id in list(subscribers):
-        for a in fresh[:3]:
+        for a in pushable[:3]:
             try:
                 await context.bot.send_message(
                     chat_id, format_alert(a), parse_mode=ParseMode.MARKDOWN,

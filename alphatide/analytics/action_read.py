@@ -146,6 +146,20 @@ def is_high_conviction(alert: Alert) -> bool:
     return read.get("actionability") == "high"
 
 
+def is_push_worthy(alert: Alert) -> bool:
+    """Whether an alert deserves to interrupt a subscriber.
+
+    Labeled-actor alerts (a named fund/MM/CEX/bridge) always do — there's a
+    "who". A bare volume anomaly only pings if it's genuinely dramatic; weaker
+    ones are still logged and visible via /recent, but don't spam.
+    """
+    from alphatide.core.config import settings
+
+    if alert.kind == AlertKind.ANOMALY:
+        return (alert.extra.get("ratio") or 0) >= settings.anomaly_push_ratio
+    return True
+
+
 _AI_SYSTEM = (
     "You are a crypto trading analyst reading a single on-chain signal on the "
     "Mantle network. In 2-3 short sentences, explain what it likely means and how "
