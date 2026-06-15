@@ -99,6 +99,29 @@ def test_anomaly_silent_on_statistically_odd_but_tiny_ratio():
     assert det.detect_ctx(_ctx(events, {}, history)) == []
 
 
+def test_anomaly_attributes_the_spike_and_excludes_pools():
+    """A spike names the actors behind it — and excludes the DEX pool sink."""
+    pool = "0x5d54d430d1fd9425976147318e6080479bffc16d"  # Merchant Moe (dex)
+    anon = "0xanon000000000000000000000000000000000001"
+    history = {"USDC": [4_000.0] * 10}
+    events = [
+        _ev(BINANCE, pool, 540_000, sym="USDC", tx="0x1"),   # cex actor
+        _ev(anon, pool, 1_500_000, sym="USDC", tx="0x2"),     # unlabeled actor, biggest
+    ]
+    labels = {
+        BINANCE: AddressLabel(BINANCE, entity_name="Binance", entity_type="cex"),
+        pool: AddressLabel(pool, entity_name="Merchant Moe", entity_type="dex"),
+    }
+    det = VolumeAnomalyDetector(threshold=3.0, min_volume_usd=50_000, min_ratio=3.0)
+    alerts = det.detect_ctx(_ctx(events, labels, history))
+    assert len(alerts) == 1
+    contribs = alerts[0].extra["contributors"]
+    whos = [c.get("who") for c in contribs]
+    assert "Merchant Moe" not in whos              # pool sink excluded
+    assert "Binance" in whos                        # named actor surfaced
+    assert contribs[0]["usd"] == 1_500_000          # biggest actor first
+
+
 def test_push_worthiness_gates_weak_anomalies():
     from alphatide.analytics.action_read import is_push_worthy
     from alphatide.core.models import Alert, AlertKind

@@ -75,6 +75,30 @@ class VolumeAnomalyDetector:
             settings.anomaly_min_ratio if min_ratio is None else min_ratio
         )
 
+    @staticmethod
+    def _contributors(ctx: DetectionContext, token: str, top: int = 3) -> list[dict]:
+        """Actors driving a token's volume — excludes DEX pools / contracts.
+
+        large_movers() aggregates both sides of each transfer, so the pool that
+        every swap routes through would otherwise top the list. Skip labeled
+        infrastructure (dex/contract/...) so we name actors, not the sink.
+        """
+        from alphatide.analytics.scoring import NON_ACTOR_TYPES
+
+        out: list[dict] = []
+        for addr, evs in ctx.movers.items():
+            tok_usd = sum(e.amount_usd for e in evs if e.token_symbol == token)
+            if tok_usd <= 0:
+                continue
+            lab = ctx.labels.get(addr)
+            et = (lab.entity_type or "").lower() if lab else ""
+            if et in NON_ACTOR_TYPES:  # DEX pool / token contract = routing sink
+                continue
+            who = lab.entity_name if (lab and lab.is_labeled) else None
+            out.append({"who": who, "addr": addr, "usd": round(tok_usd)})
+        out.sort(key=lambda c: -c["usd"])
+        return out[:top]
+
     def detect_ctx(self, ctx: DetectionContext) -> list[Alert]:
         current = window_volumes(ctx.events)
         zs = volume_zscores(ctx.events, ctx.volume_history)
@@ -93,6 +117,10 @@ class VolumeAnomalyDetector:
             if ratio < self.min_ratio:
                 continue
             rtxt = f"{ratio:.1f}×" if ratio < 100 else "100×+"  # cap absurd display
+            # Attribute the spike: who are the large movers in this token? Answers
+            # the alert's own "check who's behind it" automatically.
+            contributors = self._contributors(ctx, token)
+            labeled = [c for c in contributors if c["who"]]
             score = round(min(80.0, 45.0 + 7.0 * (z - self.threshold + 1)), 1)
             alerts.append(
                 Alert(
@@ -102,11 +130,15 @@ class VolumeAnomalyDetector:
                     headline=f"{token} volume spike — {rtxt} baseline",
                     detail=(
                         f"{token} transfer volume this window is ~${vol:,.0f} vs a "
-                        f"~${baseline:,.0f} baseline ({rtxt}, {z:.1f}σ) — "
-                        f"unusual activity; check who's behind it."
+                        f"~${baseline:,.0f} baseline ({rtxt}, {z:.1f}σ)"
+                        + (f" — driven partly by {labeled[0]['who']}."
+                           if labeled else " — large movers look unlabeled/anonymous.")
                     ),
                     token=token,
-                    extra={"zscore": z, "volume_usd": vol, "ratio": round(ratio, 2)},
+                    extra={
+                        "zscore": z, "volume_usd": vol, "ratio": round(ratio, 2),
+                        "contributors": contributors,
+                    },
                 )
             )
         # update rolling history AFTER scoring (so current isn't compared to itself)

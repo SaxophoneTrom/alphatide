@@ -45,6 +45,13 @@ def format_alert(a: Alert) -> str:
             f"🛑 _Invalidated if:_ {r.get('invalidate')}",
             f"⚠️ _{r.get('risk')}_",
         ]
+    contributors = a.extra.get("contributors")
+    if contributors:
+        parts = []
+        for c in contributors:
+            name = c.get("who") or f"{c['addr'][:6]}…{c['addr'][-4:]} (unlabeled)"
+            parts.append(f"{name} ${c['usd']:,}")
+        lines += ["", "🔍 *Behind it:* " + "  ·  ".join(parts)]
     if a.ai_note:
         lines += ["", f"🤖 *AI read (Surf):* {a.ai_note}"]
     refs = []
