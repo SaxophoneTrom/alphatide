@@ -51,8 +51,9 @@ class ConvergenceDetector:
                 continue
             total = sum(entities.values())
             names = sorted(entities, key=lambda n: -entities[n])
-            # score: more distinct entities + bigger total → higher, capped 100
-            score = min(100.0, 55.0 + 12.0 * (len(entities) - 1) + min(20.0, total / 1e5))
+            # Convergence is the strongest read the bot produces — coordinated
+            # accumulation outranks any single wallet, so it leads the digest.
+            score = min(100.0, 60.0 + 13.0 * (len(entities) - 1) + min(18.0, total / 1e5))
             dirs = by_token_dir[token]
             accumulating = sum(1 for n in names if dirs.get(n) == "accumulating")
             verb = "accumulating" if accumulating >= len(names) / 2 else "rotating"

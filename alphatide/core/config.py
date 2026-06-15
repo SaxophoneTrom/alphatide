@@ -60,6 +60,21 @@ class Settings(BaseSettings):
     subscribers_file: str = ".state/subscribers.json"
     # Append-only history of pushed alerts (auditable; survives restarts).
     alerts_file: str = ".state/alerts.jsonl"
+    # Comma-separated Telegram chat IDs allowed to run /demo. Empty = anyone
+    # (still rate-limited + budget-gated).
+    owner_chat_ids: str = ""
+
+    @property
+    def owners(self) -> set[int]:
+        out: set[int] = set()
+        for part in self.owner_chat_ids.split(","):
+            part = part.strip()
+            if part:
+                try:
+                    out.add(int(part))
+                except ValueError:
+                    pass
+        return out
 
 
 settings = Settings()

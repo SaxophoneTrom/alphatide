@@ -36,6 +36,7 @@ WELCOME = (
     "/alpha — top signals on Mantle now\n"
     "/scan — run a fresh detection cycle (stats)\n"
     "/recent — the last alerts I pushed\n"
+    "/demo — show what a live high-conviction alert looks like\n"
     "/whale `<TOKEN>` — recent smart money in a token (e.g. /whale mETH)\n"
     "/track `<address>` — who is this wallet? (Surf cross-chain label)\n"
     "/subscribe — get pushed alerts as they happen\n"
@@ -167,6 +168,50 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             f"`{addr}`\nNo cross-chain label on Surf — looks anonymous.",
             parse_mode=ParseMode.MARKDOWN,
+        )
+
+
+async def demo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Show what a live, high-conviction AlphaTide alert looks like — on demand.
+
+    Runs the canonical scenario (3 funds converging on mETH + a CEX inflow)
+    through the REAL detector suite + Action Read, and attaches a live Surf AI
+    read to the convergence. Clearly labeled as a simulation.
+    """
+    if not await _rate_ok(update, context):
+        return
+    owners = settings.owners
+    if owners and update.effective_chat.id not in owners:
+        await update.message.reply_text("🧪 /demo is restricted to the bot owner.")
+        return
+
+    from alphatide.demo import build_demo_alerts
+
+    await update.message.reply_text(
+        "🧪 *DEMO* — a simulated scenario showing what a live AlphaTide alert looks "
+        "like. _Not real-time data._ Same detectors, Action Read, and Surf AI as production.",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+    pipe = _pipeline(context)
+    alerts = build_demo_alerts()  # offline fixtures → deterministic labels
+    for a in alerts[:3]:
+        if is_high_conviction(a):
+            attach_ai_note(a, pipe.surf)  # live Surf AI (budget-gated)
+            if not a.ai_note:
+                a.ai_note = (
+                    "(sample) Three funds converging on mETH suggests coordinated "
+                    "accumulation rather than market-making; consider staging into "
+                    "pullbacks with tight risk. Not advice."
+                )
+            break
+    await update.message.reply_text(
+        format_digest(alerts), parse_mode=ParseMode.MARKDOWN,
+        disable_web_page_preview=True,
+    )
+    for a in alerts[:3]:
+        await update.message.reply_text(
+            format_alert(a), parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True,
         )
 
 

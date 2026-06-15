@@ -69,6 +69,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("alpha", handlers.alpha))
     app.add_handler(CommandHandler("scan", handlers.scan))
     app.add_handler(CommandHandler("recent", handlers.recent))
+    app.add_handler(CommandHandler("demo", handlers.demo))
     app.add_handler(CommandHandler("whale", handlers.whale))
     app.add_handler(CommandHandler("track", handlers.track))
     app.add_handler(CommandHandler("subscribe", subscribe))
