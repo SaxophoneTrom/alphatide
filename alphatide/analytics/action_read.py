@@ -111,15 +111,14 @@ def _inflow(a: Alert) -> ActionRead:
 
 
 def _anomaly(a: Alert) -> ActionRead:
-    spike = a.extra.get("zscore", 0) > 0
     return ActionRead(
         stance="Attention only",
         actionability="low",
-        meaning=f"Unusual volume {'spike' if spike else 'drop'} — flags attention but says "
-                "nothing about direction by itself.",
+        meaning="An unusual volume spike — flags attention but says nothing about "
+                "direction by itself.",
         play="Run /whale on the token to see *who* is behind it; that's the real signal.",
-        confirm="A labeled fund/convergence is found driving the volume.",
-        invalidate="Volume is one large wash/relay with no labeled actor.",
+        confirm="A labeled fund/convergence is found driving the spike.",
+        invalidate="The volume is one large wash/relay with no labeled actor.",
     )
 
 

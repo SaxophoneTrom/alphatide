@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # Run a detection cycle every N seconds in monitor mode.
     monitor_interval: int = 180
 
+    # Volume anomaly: only flag spikes whose absolute window volume clears this
+    # floor (avoids alerting on tiny-number outliers). Drops are never alerted.
+    anomaly_min_volume_usd: float = 50_000.0
+
     # --- Abuse protection (public bot) ---
     # Max expensive commands a single user may trigger per 60s.
     rate_limit_per_min: int = 6

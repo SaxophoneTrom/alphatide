@@ -65,9 +65,26 @@ def test_anomaly_fires_on_volume_spike_with_history():
     assert len(alerts) == 1
     assert alerts[0].kind == AlertKind.ANOMALY
     assert alerts[0].extra["zscore"] > 3
+    assert "spike" in alerts[0].headline
 
 
 def test_anomaly_silent_without_history():
     events = [_ev("0xa", "0xb", 500_000, sym="mETH")]
     alerts = VolumeAnomalyDetector().detect_ctx(_ctx(events, {}, {}))
     assert alerts == []  # not enough history to judge
+
+
+def test_anomaly_silent_on_volume_drop():
+    """A volume *drop* is just quiet, not alpha — must never alert."""
+    events = [_ev("0xa", "0xb", 5_000, sym="mETH")]   # current far below baseline
+    history = {"mETH": [50_000.0] * 10}
+    det = VolumeAnomalyDetector(threshold=3.0, min_volume_usd=0)  # isolate spike logic
+    assert det.detect_ctx(_ctx(events, {}, history)) == []
+
+
+def test_anomaly_silent_below_volume_floor():
+    """A spike on trivial absolute volume is noise — filtered by the floor."""
+    events = [_ev("0xa", "0xb", 12_000, sym="mETH")]  # 12x of $1k baseline but tiny
+    history = {"mETH": [1_000.0] * 10}
+    det = VolumeAnomalyDetector(threshold=3.0, min_volume_usd=50_000)
+    assert det.detect_ctx(_ctx(events, {}, history)) == []

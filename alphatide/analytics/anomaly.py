@@ -11,6 +11,7 @@ from __future__ import annotations
 import statistics
 from collections import defaultdict
 
+from alphatide.core.config import settings
 from alphatide.core.models import Alert, AlertKind, DetectionContext, TransferEvent
 
 
@@ -61,33 +62,43 @@ class VolumeAnomalyDetector:
 
     name = "anomaly"
 
-    def __init__(self, threshold: float = 3.0, max_history: int = 50) -> None:
+    def __init__(
+        self, threshold: float = 3.0, max_history: int = 50,
+        min_volume_usd: float | None = None,
+    ) -> None:
         self.threshold = threshold
         self.max_history = max_history
+        self.min_volume_usd = (
+            settings.anomaly_min_volume_usd if min_volume_usd is None else min_volume_usd
+        )
 
     def detect_ctx(self, ctx: DetectionContext) -> list[Alert]:
         current = window_volumes(ctx.events)
         zs = volume_zscores(ctx.events, ctx.volume_history)
         alerts: list[Alert] = []
         for token, z in zs.items():
-            if not is_anomalous(z, self.threshold):
+            # Spikes only — a volume *drop* is just quiet, not alpha. And ignore
+            # spikes whose absolute volume is trivial (noise on a quiet chain).
+            if z < self.threshold:
                 continue
             vol = current.get(token, 0.0)
+            if vol < self.min_volume_usd:
+                continue
             baseline = statistics.mean(ctx.volume_history.get(token, [vol])) or 1.0
             ratio = vol / baseline
-            direction = "spike" if z > 0 else "drop"
             # Anomaly is a *secondary* signal — capped below named smart-money so
             # labeled findings lead the digest. Value is in confluence.
-            score = round(min(80.0, 45.0 + 7.0 * (abs(z) - self.threshold + 1)), 1)
+            score = round(min(80.0, 45.0 + 7.0 * (z - self.threshold + 1)), 1)
             alerts.append(
                 Alert(
                     kind=AlertKind.ANOMALY,
                     score=score,
-                    emoji="📈" if z > 0 else "📉",
-                    headline=f"{token} volume {direction} — {ratio:.1f}× baseline",
+                    emoji="📈",
+                    headline=f"{token} volume spike — {ratio:.1f}× baseline",
                     detail=(
                         f"{token} transfer volume this window is ~${vol:,.0f} vs a "
-                        f"~${baseline:,.0f} baseline ({ratio:.1f}×, {abs(z):.1f}σ) on Mantle."
+                        f"~${baseline:,.0f} baseline ({ratio:.1f}×, {z:.1f}σ) — "
+                        f"unusual activity; check who's behind it."
                     ),
                     token=token,
                     extra={"zscore": z, "volume_usd": vol, "ratio": round(ratio, 2)},
