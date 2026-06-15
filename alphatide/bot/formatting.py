@@ -47,21 +47,25 @@ def format_alert(a: Alert) -> str:
         ]
     contributors = a.extra.get("contributors")
     if contributors:
-        parts = []
+        lines += ["", "🔍 *Behind it:* _(tap an address to copy → /track it)_"]
         for c in contributors:
-            name = c.get("who") or f"{c['addr'][:6]}…{c['addr'][-4:]} (unlabeled)"
-            parts.append(f"{name} ${c['usd']:,}")
-        lines += ["", "🔍 *Behind it:* " + "  ·  ".join(parts)]
+            if c.get("who"):
+                lines.append(f"• {c['who']} — ${c['usd']:,}")
+            else:
+                # full address in a code span = tap-to-copy in Telegram
+                lines.append(f"• `{c['addr']}` — ${c['usd']:,} _(unlabeled)_")
     if a.ai_note:
         lines += ["", f"🤖 *AI read (Surf):* {a.ai_note}"]
-    refs = []
     if a.address:
-        short = f"{a.address[:6]}…{a.address[-4:]}"
-        refs.append(f"[{short}]({MANTLE_EXPLORER}/address/{a.address})")
+        # full address, tap-to-copy, ready to paste into /track
+        lines += ["", f"📍 `{a.address}`"]
+    links = []
+    if a.address:
+        links.append(f"[explorer]({MANTLE_EXPLORER}/address/{a.address})")
     if a.tx_hash and a.tx_hash.startswith("0x") and len(a.tx_hash) > 12:
-        refs.append(f"[tx]({MANTLE_EXPLORER}/tx/{a.tx_hash})")
-    if refs:
-        lines += ["", "  ·  ".join(refs)]
+        links.append(f"[tx]({MANTLE_EXPLORER}/tx/{a.tx_hash})")
+    if links:
+        lines.append("  ·  ".join(links))
     return "\n".join(lines)
 
 
