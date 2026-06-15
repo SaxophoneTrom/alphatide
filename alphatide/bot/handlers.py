@@ -14,6 +14,7 @@ from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
 from alphatide.bot.formatting import format_alert, format_digest
+from alphatide.bot.state import load_recent_alerts
 from alphatide.core.config import settings
 from alphatide.core.models import AlertKind
 from alphatide.data.tokens import TOKENS
@@ -33,10 +34,15 @@ WELCOME = (
     "*Commands*\n"
     "/alpha — top signals on Mantle now\n"
     "/scan — run a fresh detection cycle (stats)\n"
+    "/recent — the last alerts I pushed\n"
     "/whale `<TOKEN>` — recent smart money in a token (e.g. /whale mETH)\n"
     "/track `<address>` — who is this wallet? (Surf cross-chain label)\n"
     "/subscribe — get pushed alerts as they happen\n"
 )
+
+_KIND_EMOJI = {
+    "smart_money": "🧠", "convergence": "🧲", "inflow": "🌉", "anomaly": "📈",
+}
 
 
 def _pipeline(context: ContextTypes.DEFAULT_TYPE) -> AlphaTidePipeline:
@@ -155,6 +161,26 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             f"`{addr}`\nNo cross-chain label on Surf — looks anonymous.",
             parse_mode=ParseMode.MARKDOWN,
         )
+
+
+async def recent(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not await _rate_ok(update, context):
+        return
+    rows = load_recent_alerts(settings.alerts_file, n=10)
+    if not rows:
+        await update.message.reply_text(
+            "No alerts pushed yet. I'll log every one here as it fires."
+        )
+        return
+    lines = ["🌊 *Recent AlphaTide alerts*"]
+    for r in rows:
+        emoji = _KIND_EMOJI.get(r.get("kind", ""), "🌊")
+        ts = (r.get("ts", "") or "").replace("T", " ")[5:16]  # MM-DD HH:MM
+        lines.append(f"{emoji} `{ts}`  {r.get('headline', '')}  · *{r.get('score', '')}*")
+    await update.message.reply_text(
+        "\n".join(lines), parse_mode=ParseMode.MARKDOWN,
+        disable_web_page_preview=True,
+    )
 
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

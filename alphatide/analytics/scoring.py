@@ -32,8 +32,8 @@ ENTITY_WEIGHT: dict[str, float] = {
 # token contract trips the USD threshold on every swap, but it isn't an actor —
 # excluding these by type is what keeps signals clean.
 NON_ACTOR_TYPES: frozenset[str] = frozenset({
-    "dex", "token", "contract", "smart-contract", "smart_contract",
-    "smart-contract-platform", "protocol", "nft", "bridge",
+    "dex", "dex-aggregator", "token", "contract", "smart-contract",
+    "smart_contract", "smart-contract-platform", "protocol", "nft", "bridge",
 })
 
 

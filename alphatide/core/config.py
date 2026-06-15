@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     daily_credit_budget: int = 500
     # Where the push-subscriber list is persisted (survives restarts).
     subscribers_file: str = ".state/subscribers.json"
+    # Append-only history of pushed alerts (auditable; survives restarts).
+    alerts_file: str = ".state/alerts.jsonl"
 
 
 settings = Settings()
