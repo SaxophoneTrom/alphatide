@@ -14,7 +14,12 @@ from __future__ import annotations
 import logging
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+)
 
 from alphatide.bot import handlers
 from alphatide.bot.monitor import monitor_tick
@@ -74,6 +79,7 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("track", handlers.track))
     app.add_handler(CommandHandler("subscribe", subscribe))
     app.add_handler(CommandHandler("unsubscribe", unsubscribe))
+    app.add_handler(CallbackQueryHandler(handlers.track_callback, pattern="^track:"))
     if app.job_queue:
         app.job_queue.run_repeating(
             monitor_tick, interval=settings.monitor_interval, first=15

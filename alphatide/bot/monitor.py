@@ -18,6 +18,7 @@ from alphatide.analytics.action_read import (
     is_push_worthy,
 )
 from alphatide.bot.formatting import format_alert
+from alphatide.bot.keyboards import build_track_keyboard
 from alphatide.bot.state import append_alert
 from alphatide.core.config import settings
 from alphatide.pipeline import AlphaTidePipeline
@@ -73,7 +74,7 @@ async def monitor_tick(context: ContextTypes.DEFAULT_TYPE) -> None:
             try:
                 await context.bot.send_message(
                     chat_id, format_alert(a), parse_mode=ParseMode.MARKDOWN,
-                    disable_web_page_preview=True,
+                    disable_web_page_preview=True, reply_markup=build_track_keyboard(a),
                 )
             except Exception as exc:
                 logger.warning("push to %s failed: %s", chat_id, exc)

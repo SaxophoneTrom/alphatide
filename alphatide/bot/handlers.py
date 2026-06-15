@@ -15,7 +15,9 @@ from telegram.ext import ContextTypes
 
 from alphatide.analytics.action_read import attach_ai_note, is_high_conviction
 from alphatide.bot.formatting import format_alert, format_digest
+from alphatide.bot.keyboards import build_track_keyboard
 from alphatide.bot.state import load_recent_alerts
+from alphatide.core.models import AddressLabel
 from alphatide.core.config import settings
 from alphatide.core.models import AlertKind
 from alphatide.data.tokens import TOKENS
@@ -92,7 +94,7 @@ async def alpha(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     for a in res.alerts[:3]:
         await update.message.reply_text(
             format_alert(a), parse_mode=ParseMode.MARKDOWN,
-            disable_web_page_preview=True,
+            disable_web_page_preview=True, reply_markup=build_track_keyboard(a),
         )
 
 
@@ -144,6 +146,17 @@ async def whale(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
+def _format_identity(addr: str, label: AddressLabel | None) -> str:
+    if label and label.is_labeled:
+        who = label.entity_name or "—"
+        extra = f" ({', '.join(label.labels)})" if label.labels else ""
+        return (
+            f"🧠 `{addr}`\nSurf cross-chain identity: *{who}*{extra}\n"
+            f"Type: {label.entity_type or 'n/a'}"
+        )
+    return f"`{addr}`\nNo cross-chain label on Surf — looks anonymous."
+
+
 async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not await _rate_ok(update, context):
         return
@@ -155,20 +168,27 @@ async def track(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("That doesn't look like an address.")
         return
     labels = _pipeline(context).surf.label_addresses([addr])
-    label = labels.get(addr)
-    if label and label.is_labeled:
-        who = label.entity_name or "—"
-        extra = f" ({', '.join(label.labels)})" if label.labels else ""
-        await update.message.reply_text(
-            f"🧠 `{addr}`\nSurf cross-chain identity: *{who}*{extra}\n"
-            f"Type: {label.entity_type or 'n/a'}",
-            parse_mode=ParseMode.MARKDOWN,
-        )
-    else:
-        await update.message.reply_text(
-            f"`{addr}`\nNo cross-chain label on Surf — looks anonymous.",
-            parse_mode=ParseMode.MARKDOWN,
-        )
+    await update.message.reply_text(
+        _format_identity(addr, labels.get(addr)), parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+async def track_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle a tap on a '🔍 Track' inline button — look up and reply inline."""
+    query = update.callback_query
+    rl = context.application.bot_data.get("rate_limiter")
+    if rl is not None and not rl.allow(query.from_user.id):
+        await query.answer("⏳ Too many requests — wait a moment.", show_alert=False)
+        return
+    await query.answer("🔍 Looking up…")
+    data = query.data or ""
+    addr = data.split(":", 1)[1].lower() if ":" in data else ""
+    if not (addr.startswith("0x") and len(addr) == 42):
+        return
+    labels = _pipeline(context).surf.label_addresses([addr])
+    await query.message.reply_text(
+        _format_identity(addr, labels.get(addr)), parse_mode=ParseMode.MARKDOWN,
+    )
 
 
 async def demo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -211,7 +231,7 @@ async def demo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     for a in alerts[:3]:
         await update.message.reply_text(
             format_alert(a), parse_mode=ParseMode.MARKDOWN,
-            disable_web_page_preview=True,
+            disable_web_page_preview=True, reply_markup=build_track_keyboard(a),
         )
 
 
